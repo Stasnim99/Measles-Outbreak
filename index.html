@@ -1,0 +1,502 @@
+<!--
+  U.S. Measles Outbreak Report — 2026
+  ------------------------------------
+  Single-page summary of this year's measles outbreak: headline stats, a
+  state-by-state tile map, a top-10 table, a plain-English section on the
+  disease itself, and a prevention/vaccination section. Everything (HTML,
+  CSS, JS) lives in this one file on purpose, so it opens straight from the
+  desktop with no server and no external libraries.
+
+  Numbers are pulled from CDC surveillance data plus CIDRAP, Mappr, and the
+  Johns Hopkins IVAC tracker (see the Sources section at the bottom for
+  links). CDC refreshes its counts every Thursday, so treat the figures here
+  as a snapshot rather than the live total — the "as of" date near the top
+  says exactly how current things are.
+
+  Last updated: July 17, 2026.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Measles in the U.S. — 2026 Outbreak Overview</title>
+<style>
+  /* off-white + muted red/green palette so this doesn't read like a scary alarm page */
+  :root{
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #232323;
+    --muted: #6b6b6b;
+    --line: #e7e3dd;
+    --accent: #b3312c;
+    --accent-dark: #7a1f1c;
+    --accent-soft: #f3d9d7;
+    --good: #2f6d4f;
+    --tier-0: #eeeae4;
+    --tier-1: #f6d3ce;
+    --tier-2: #e8998e;
+    --tier-3: #c94f42;
+    --tier-4: #8f221d;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 6px 20px rgba(0,0,0,0.05);
+  }
+  /* base resets + the centered content column used by every section */
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height:1.55;
+  }
+  a{color:var(--accent-dark);}
+  .wrap{max-width:1080px; margin:0 auto; padding:0 24px;}
+
+  /* sticky top nav */
+  header.site{
+    background: linear-gradient(180deg, #ffffff 0%, #fbfaf8 100%);
+    border-bottom:1px solid var(--line);
+    padding:14px 0;
+    position:sticky;
+    top:0;
+    z-index:50;
+    backdrop-filter: blur(6px);
+  }
+  header.site .bar{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.05rem;}
+  .brand .dot{width:12px;height:12px;border-radius:50%;background:var(--accent);display:inline-block;}
+  nav.links{display:flex; gap:18px; flex-wrap:wrap; font-size:0.92rem;}
+  nav.links a{text-decoration:none; color:var(--muted); font-weight:600;}
+  nav.links a:hover{color:var(--accent-dark);}
+
+  /* hero: title, lede paragraph, "as of" date */
+  .hero{padding:56px 0 34px;}
+  .kicker{
+    display:inline-block;
+    background:var(--accent-soft);
+    color:var(--accent-dark);
+    font-weight:700;
+    font-size:0.78rem;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    padding:5px 12px;
+    border-radius:999px;
+    margin-bottom:14px;
+  }
+  h1{font-size:2.4rem; margin:0 0 12px; line-height:1.15;}
+  .lede{font-size:1.1rem; color:#444; max-width:70ch; margin:0 0 8px;}
+  .asof{color:var(--muted); font-size:0.88rem;}
+
+  /* the row of headline stat cards under the hero */
+  .stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+    gap:14px;
+    margin:32px 0 12px;
+  }
+  .stat{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px 16px;
+    box-shadow:var(--shadow);
+  }
+  .stat .num{font-size:1.7rem; font-weight:800; color:var(--accent-dark);}
+  .stat .label{font-size:0.82rem; color:var(--muted); margin-top:4px;}
+
+  /* shared section spacing/heading styles used by map/states/about/prevention/sources */
+  section{padding:44px 0; border-top:1px solid var(--line);}
+  section h2{font-size:1.5rem; margin:0 0 6px;}
+  section .subhead{color:var(--muted); margin:0 0 24px; max-width:70ch;}
+
+  /* generic white card used everywhere (map panel, table wrapper, about/prevention cards) */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:24px;
+  }
+
+  /* tile-grid "map" — each state is one equal-size box positioned roughly where
+     it sits on a real map, so small states don't disappear next to Texas */
+  .map-layout{display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start;}
+  .map-grid{
+    display:grid;
+    grid-template-columns:repeat(14, 34px);
+    grid-auto-rows:34px;
+    gap:4px;
+  }
+  .tile{
+    display:flex; align-items:center; justify-content:center;
+    font-size:0.62rem; font-weight:700;
+    border-radius:5px;
+    color:#3a3a3a;
+    cursor:default;
+    border:1px solid rgba(0,0,0,0.06);
+    transition: transform .08s ease;
+  }
+  .tile:hover{ transform: scale(1.14); z-index:5; box-shadow:0 4px 10px rgba(0,0,0,0.18); }
+  .tile.t0{background:var(--tier-0); color:#8a8a8a;}
+  .tile.t1{background:var(--tier-1); color:#5c1512;}
+  .tile.t2{background:var(--tier-2); color:#fff;}
+  .tile.t3{background:var(--tier-3); color:#fff;}
+  .tile.t4{background:var(--tier-4); color:#fff;}
+
+  /* legend + tooltip that sit next to the map grid */
+  .map-side{flex:1; min-width:230px;}
+  .legend{display:flex; flex-direction:column; gap:8px; margin-bottom:20px;}
+  .legend-row{display:flex; align-items:center; gap:10px; font-size:0.86rem; color:#444;}
+  .swatch{width:16px;height:16px;border-radius:4px; border:1px solid rgba(0,0,0,0.08); flex-shrink:0;}
+
+  #tooltip{
+    min-height:78px;
+    background:#fff9f4;
+    border:1px dashed var(--accent-soft);
+    border-radius:10px;
+    padding:12px 14px;
+    font-size:0.88rem;
+    color:#444;
+  }
+  #tooltip b{color:var(--accent-dark);}
+
+  /* top-10 states table */
+  table{width:100%; border-collapse:collapse; font-size:0.92rem;}
+  th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line);}
+  th{color:var(--muted); font-weight:700; font-size:0.78rem; text-transform:uppercase; letter-spacing:.03em;}
+  tr:last-child td{border-bottom:none;}
+  td.n{font-weight:700; color:var(--accent-dark);}
+
+  /* two-column card grid used in the About/Prevention sections, stacks to one column on mobile */
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:720px){ .grid-2{grid-template-columns:1fr;} }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px;
+    box-shadow:var(--shadow);
+  }
+  .card h3{margin:0 0 8px; font-size:1.05rem;}
+  .card ul{margin:8px 0 0; padding-left:20px; color:#444;}
+  .card li{margin-bottom:6px;}
+
+  /* small rounded "badges" under the states table */
+  .pill-row{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
+  .pill{background:var(--accent-soft); color:var(--accent-dark); font-weight:700; font-size:0.82rem; padding:6px 12px; border-radius:999px;}
+
+  /* green call-to-action box, used for the "call before you visit" note in Prevention */
+  .callout{
+    background:#f2f7f3;
+    border:1px solid #d7e8db;
+    border-left:4px solid var(--good);
+    border-radius:10px;
+    padding:16px 18px;
+    color:#2c4a3a;
+    font-size:0.95rem;
+  }
+
+  /* numbered source list at the bottom */
+  .sources ol{padding-left:20px; color:#444;}
+  .sources li{margin-bottom:10px;}
+
+  /* footer + the data-currency disclaimer box inside it */
+  footer{
+    padding:30px 0 60px;
+    color:var(--muted);
+    font-size:0.82rem;
+    border-top:1px solid var(--line);
+  }
+  footer .disclaimer{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:16px;
+  }
+</style>
+</head>
+<body>
+
+<!-- top nav, just anchor links down to each section -->
+<header class="site">
+  <div class="wrap bar">
+    <div class="brand"><span class="dot"></span> U.S. Measles Outbreak Report</div>
+    <nav class="links">
+      <a href="#stats">Snapshot</a>
+      <a href="#map">Map</a>
+      <a href="#states">States</a>
+      <a href="#about">About Measles</a>
+      <a href="#prevention">Prevention</a>
+      <a href="#sources">Sources</a>
+    </nav>
+  </div>
+</header>
+
+<!-- hero + headline stat cards (stat values are hardcoded here, not generated by the script) -->
+<div class="hero wrap">
+  <span class="kicker">CDC-sourced data</span>
+  <h1>The 2026 U.S. Measles Outbreak</h1>
+  <p class="lede">An overview of where measles is spreading in the United States this year, how the outbreak compares with recent years, and what the CDC recommends for protecting yourself and your family. Compiled from CDC surveillance data and public health reporting.</p>
+  <p class="asof">Figures reflect CDC updates through <strong>July 9, 2026</strong>, and state-level reporting through mid-June 2026. The CDC releases new counts each Thursday, so current totals may already be higher; see <a href="#sources">Sources</a> below for the live tracker.</p>
+
+  <div class="stats" id="stats">
+    <div class="stat"><div class="num">2,231+</div><div class="label">Confirmed cases in 2026</div></div>
+    <div class="stat"><div class="num">42</div><div class="label">States / jurisdictions with cases</div></div>
+    <div class="stat"><div class="num">93%</div><div class="label">Cases tied to an outbreak</div></div>
+    <div class="stat"><div class="num">~92%</div><div class="label">Unvaccinated or unknown status</div></div>
+    <div class="stat"><div class="num">~6%</div><div class="label">Hospitalization rate</div></div>
+    <div class="stat"><div class="num">73%</div><div class="label">Cases in patients under 20</div></div>
+  </div>
+</div>
+
+<!-- tile-grid map: #mapGrid starts empty, tiles are generated by the script from the `states` array -->
+<section id="map">
+  <div class="wrap">
+    <h2>Where cases are concentrated</h2>
+    <p class="subhead">This is a tile-grid map: each state is represented by a tile of the same size, positioned roughly according to its geographic location, so smaller states remain as visible as larger ones. Hover or tap a tile for details. South Carolina and Utah alone account for more than half of all cases reported nationwide this year.</p>
+
+    <div class="panel map-layout">
+      <div class="map-grid" id="mapGrid"></div>
+      <div class="map-side">
+        <div class="legend">
+          <div class="legend-row"><span class="swatch" style="background:var(--tier-0)"></span> No cases reported in 2026</div>
+          <div class="legend-row"><span class="swatch" style="background:var(--tier-1)"></span> 1–49 cases</div>
+          <div class="legend-row"><span class="swatch" style="background:var(--tier-2)"></span> 50–199 cases</div>
+          <div class="legend-row"><span class="swatch" style="background:var(--tier-4)"></span> 200+ cases (major outbreak)</div>
+        </div>
+        <div id="tooltip">Hover over a state tile to see its case count and status.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- top-10 table: #stateTable rows are generated by the script from the `topStates` array -->
+<section id="states">
+  <div class="wrap">
+    <h2>Top affected states</h2>
+    <p class="subhead">The states with the highest confirmed case counts so far this year. South Carolina and Utah remain the centers of the largest outbreaks. Texas and Florida report more cases in absolute terms, but their per-capita rates are far lower given their larger populations.</p>
+    <div class="panel">
+      <table>
+        <thead><tr><th>State</th><th>Confirmed cases</th><th>Cases per 100,000 people</th><th>Notes</th></tr></thead>
+        <tbody id="stateTable"></tbody>
+      </table>
+    </div>
+    <div class="pill-row">
+      <span class="pill">17+ active outbreaks</span>
+      <span class="pill">32 outbreaks started in 2026</span>
+      <span class="pill">Elimination status at risk Nov. 2026</span>
+    </div>
+  </div>
+</section>
+
+<!-- plain-English background on the disease: symptoms, contagiousness, complications, how 2026 compares historically -->
+<section id="about">
+  <div class="wrap">
+    <h2>About measles</h2>
+    <p class="subhead">What the disease is, how it spreads, and why it takes hold so quickly in under-vaccinated communities.</p>
+    <div class="grid-2">
+      <div class="card">
+        <h3>Symptoms</h3>
+        <ul>
+          <li>High fever, cough, runny nose, and red, watery eyes 7–14 days after exposure</li>
+          <li>A red, blotchy rash that usually starts on the face and spreads down the body</li>
+          <li>Tiny white spots inside the mouth (Koplik spots) in some cases</li>
+          <li>Contagious from about 4 days before to 4 days after the rash appears</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>How contagious is it</h3>
+        <ul>
+          <li>Measles is among the most contagious diseases known. It spreads through the air and can remain in a room for up to two hours after an infected person has left</li>
+          <li>If one person has measles, up to 9 out of 10 unvaccinated people nearby will typically become infected</li>
+          <li>A community generally needs about 95% MMR vaccination coverage to keep outbreaks from taking hold</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Possible complications</h3>
+        <ul>
+          <li>Common: ear infections, diarrhea</li>
+          <li>Serious: pneumonia, encephalitis (brain swelling)</li>
+          <li>Can be fatal, particularly in young children and immunocompromised people</li>
+          <li>Children under 5 make up about 21% of 2026 cases</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>2026 in context</h3>
+        <ul>
+          <li>2026 is on pace to be one of the worst years for measles in the United States since elimination was declared in 2000</li>
+          <li>No deaths have been confirmed in 2026 as of this writing; three were reported in 2025</li>
+          <li>If transmission continues uninterrupted for 12 months, the U.S. risks losing its official measles elimination status, a determination expected in November 2026</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- vaccine effectiveness + why unvaccinated status is driving this particular outbreak -->
+<section id="prevention">
+  <div class="wrap">
+    <h2>Prevention &amp; vaccination</h2>
+    <p class="subhead">The MMR (measles, mumps, rubella) vaccine remains the single most effective tool against measles.</p>
+    <div class="grid-2">
+      <div class="card">
+        <h3>MMR vaccine effectiveness</h3>
+        <ul>
+          <li><strong>2 doses:</strong> about 97% effective at preventing measles</li>
+          <li><strong>1 dose:</strong> about 93% effective</li>
+          <li>Protection against measles is generally lifelong after the full 2-dose series</li>
+          <li>Standard schedule: first dose at 12–15 months, second at 4–6 years</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Why vaccination status matters in this outbreak</h3>
+        <ul>
+          <li>About 92% of 2026 U.S. cases are in people who are unvaccinated or whose vaccination status is unknown</li>
+          <li>Outbreaks are concentrated in under-vaccinated communities, which explains why cases cluster tightly in specific counties and states rather than spreading evenly across the country</li>
+          <li>Reviewing your own and your family's MMR records, and catching up on any missed doses, remains the most direct way to reduce personal risk</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:20px;">
+      If you suspect that you or a family member has measles, call your doctor or clinic before visiting in person. This allows staff to take precautions and avoid exposing other patients in the waiting room.
+    </div>
+  </div>
+</section>
+
+<!-- links back to every source used for the figures on this page -->
+<section id="sources">
+  <div class="wrap sources">
+    <h2>Sources &amp; further reading</h2>
+    <p class="subhead">This page summarizes public health reporting drawn from the sources below. For the most current, authoritative figures, consult the CDC directly.</p>
+    <div class="panel">
+      <ol>
+        <li><a href="https://www.cdc.gov/measles/data-research/index.html" target="_blank" rel="noopener">CDC — Measles Cases and Outbreaks (official weekly data)</a></li>
+        <li><a href="https://www.cdc.gov/measles/index.html" target="_blank" rel="noopener">CDC — Measles (Rubeola) overview</a></li>
+        <li><a href="https://www.cdc.gov/measles/about/index.html" target="_blank" rel="noopener">CDC — About Measles (symptoms &amp; complications)</a></li>
+        <li><a href="https://www.cdc.gov/measles/vaccines/index.html" target="_blank" rel="noopener">CDC — Measles Vaccination (MMR guidance)</a></li>
+        <li><a href="https://www.mappr.co/us-measles-outbreak-map/" target="_blank" rel="noopener">Mappr — 2026 U.S. Measles Outbreak Map by State</a></li>
+        <li><a href="https://www.cidrap.umn.edu/measles/us-measles-total-surpasses-1700-cases" target="_blank" rel="noopener">CIDRAP — US measles total surpasses 1,700 cases</a></li>
+        <li><a href="https://publichealth.jhu.edu/ivac/resources/us-measles-tracker" target="_blank" rel="noopener">Johns Hopkins IVAC — U.S. Measles Tracker</a></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- data-currency disclaimer + last-compiled date -->
+<footer>
+  <div class="wrap">
+    <div class="disclaimer">
+      <strong>Data note:</strong> Case counts change weekly and can vary slightly depending on the source and reporting date. The figures above are compiled from CDC updates through July 9, 2026, and state-level reporting aggregated by CIDRAP and Mappr through mid-June 2026. Some state totals are approximate. This page is intended for general information only and does not constitute medical advice; consult the CDC or a healthcare provider for guidance specific to you.
+    </div>
+    A static reference page, last compiled on July 17, 2026.
+  </div>
+</footer>
+
+<script>
+  // tier: 0 = none, 1 = 1-49, 2 = 50-199, 4 = 200+ (no tier 3 currently in use, left room in the CSS in case a state lands in that range later)
+  // row/col = position on the 14-col tile grid, hand-placed to loosely mirror each state's real location
+  // cases left undefined where no state-published total could be found — see the README for why
+  const states = [
+    {ab:"AK", row:3, col:1, tier:1, name:"Alaska", note:"Cases reported; no specific state total found in available sources"},
+    {ab:"ME", row:1, col:13, tier:1, cases:5, name:"Maine", note:"All linked to one traveler in Penobscot County (Feb. 2026)"},
+    {ab:"VT", row:2, col:12, tier:1, cases:1, name:"Vermont", note:"Adult in Washington County, linked to international travel"},
+    {ab:"NH", row:2, col:13, tier:1, cases:1, name:"New Hampshire", note:"Unvaccinated resident, part of a New England cluster tied to an international traveler (June 2026)"},
+    {ab:"WA", row:3, col:2, tier:1, cases:45, name:"Washington"},
+    {ab:"ID", row:3, col:3, tier:1, cases:10, name:"Idaho", note:"As of mid-July 2026"},
+    {ab:"MT", row:3, col:4, tier:1, cases:5, name:"Montana", note:"2026-only count as of mid-June; 41 total across 2025–2026 combined"},
+    {ab:"ND", row:3, col:5, tier:1, cases:38, name:"North Dakota"},
+    {ab:"MN", row:3, col:6, tier:1, cases:17, name:"Minnesota"},
+    {ab:"IL", row:3, col:8, tier:1, name:"Illinois", note:"Cases reported; no specific state total found in available sources"},
+    {ab:"WI", row:3, col:9, tier:1, name:"Wisconsin", note:"Cases reported; no specific state total found in available sources"},
+    {ab:"MI", row:3, col:10, tier:1, cases:10, name:"Michigan", note:"As of late April 2026, the most recent reliable figure found"},
+    {ab:"NY", row:3, col:12, tier:1, cases:14, name:"New York (State &amp; NYC)", note:"6 in NYC, 8 elsewhere in the state, as of mid-July 2026"},
+    {ab:"MA", row:3, col:13, tier:1, cases:2, name:"Massachusetts", note:"As of July 10, 2026"},
+    {ab:"OR", row:4, col:2, tier:1, cases:20, name:"Oregon", note:"As of mid-April 2026; officials believe the true count is higher"},
+    {ab:"NV", row:4, col:3, tier:1, name:"Nevada", note:"Several isolated visitor cases reported through the year; no cumulative state total published"},
+    {ab:"WY", row:4, col:4, tier:1, cases:6, name:"Wyoming", note:"Teton County outbreak prompted a local emergency declaration (July 2026)"},
+    {ab:"SD", row:4, col:5, tier:1, cases:11, name:"South Dakota", note:"As of July 8, 2026"},
+    {ab:"IA", row:4, col:6, tier:1, cases:1, name:"Iowa", note:"First case of the year, confirmed July 8, 2026"},
+    {ab:"IN", row:4, col:7, tier:0, name:"Indiana", note:"No known 2026 outbreak as of April 2026"},
+    {ab:"OH", row:4, col:8, tier:1, cases:9, name:"Ohio", note:"As of late February 2026"},
+    {ab:"PA", row:4, col:11, tier:2, cases:81, name:"Pennsylvania"},
+    {ab:"NJ", row:4, col:12, tier:1, cases:1, name:"New Jersey", note:"Hudson County resident, confirmed April 22, 2026"},
+    {ab:"CT", row:4, col:13, tier:1, cases:2, name:"Connecticut", note:"Both in Hartford County, as of June 2026"},
+    {ab:"CA", row:5, col:1, tier:1, cases:49, name:"California"},
+    {ab:"UT", row:5, col:2, tier:4, cases:520, name:"Utah", note:"One of two epicenters of the 2026 outbreak"},
+    {ab:"CO", row:5, col:3, tier:1, cases:16, name:"Colorado", note:"As of mid-April 2026"},
+    {ab:"NE", row:5, col:4, tier:1, name:"Nebraska", note:"Cases reported; no specific state total found in available sources"},
+    {ab:"MO", row:5, col:5, tier:1, name:"Missouri", note:"Cases reported; no specific state total found in available sources"},
+    {ab:"KY", row:5, col:6, tier:1, cases:2, name:"Kentucky", note:"Jessamine County, state's first cases since July 2025"},
+    {ab:"WV", row:5, col:7, tier:0, name:"West Virginia", note:"No 2026 case identified in available reporting"},
+    {ab:"VA", row:5, col:8, tier:2, cases:111, name:"Virginia", note:"Fastest-growing outbreak, centered in rural Buckingham County"},
+    {ab:"MD", row:5, col:9, tier:1, cases:9, name:"Maryland", note:"As of July 16, 2026"},
+    {ab:"DE", row:5, col:10, tier:1, cases:1, name:"Delaware", note:"Wilmington-area case, confirmed February 2026"},
+    {ab:"RI", row:4, col:14, tier:1, cases:2, name:"Rhode Island", note:"Both linked to international travel"},
+    {ab:"AZ", row:6, col:2, tier:2, cases:96, name:"Arizona"},
+    {ab:"NM", row:6, col:3, tier:1, cases:13, name:"New Mexico", note:"Linked to three county detention centers in southern New Mexico"},
+    {ab:"KS", row:6, col:4, tier:1, name:"Kansas", note:"Cases reported; no specific state total found in available sources"},
+    {ab:"AR", row:6, col:5, tier:0, name:"Arkansas", note:"No 2026 case identified in available reporting"},
+    {ab:"TN", row:6, col:6, tier:1, cases:2, name:"Tennessee", note:"Both in Middle Tennessee, as of early July 2026"},
+    {ab:"NC", row:6, col:7, tier:1, cases:22, name:"North Carolina", note:"Cluster spanned December 2025–February 2026 across 10 counties"},
+    {ab:"SC", row:6, col:8, tier:4, cases:699, name:"South Carolina", note:"Largest single outbreak in the country"},
+    {ab:"DC", row:6, col:9, tier:1, name:"Washington, D.C.", note:"Cases reported; no specific total found in available sources"},
+    {ab:"OK", row:7, col:4, tier:1, cases:1, name:"Oklahoma", note:"Confirmed January 30, 2026"},
+    {ab:"LA", row:7, col:5, tier:1, cases:1, name:"Louisiana", note:"Pediatric case tied to international travel, confirmed April 2026"},
+    {ab:"MS", row:7, col:6, tier:0, name:"Mississippi", note:"State health officials report zero cases as of mid-2026"},
+    {ab:"AL", row:7, col:7, tier:0, name:"Alabama", note:"Only case on record dates to August 2025; no confirmed 2026 case found"},
+    {ab:"GA", row:7, col:8, tier:1, cases:5, name:"Georgia", note:"As of May 2026"},
+    {ab:"HI", row:8, col:1, tier:1, cases:3, name:"Hawaii", note:"At least three cases confirmed on Oʻahu in 2026"},
+    {ab:"TX", row:8, col:4, tier:2, cases:182, name:"Texas"},
+    {ab:"FL", row:8, col:8, tier:2, cases:154, name:"Florida"}
+  ];
+
+  const grid = document.getElementById('mapGrid');
+  const tooltip = document.getElementById('tooltip');
+
+  // build the tile grid from the states array above and wire up the hover/tap tooltip
+  states.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'tile t' + s.tier;
+    el.style.gridColumn = s.col;
+    el.style.gridRow = s.row;
+    el.textContent = s.ab;
+    const detail = s.cases
+      ? `<b>${s.cases}</b> confirmed cases in 2026`
+      : (s.note || 'No state-specific figure available');
+    const extra = s.note && s.cases ? ` — ${s.note}` : '';
+    el.addEventListener('mouseenter', () => {
+      tooltip.innerHTML = `<b>${s.name}</b><br>${detail}${extra}`;
+    });
+    el.addEventListener('click', () => {
+      tooltip.innerHTML = `<b>${s.name}</b><br>${detail}${extra}`;
+    });
+    grid.appendChild(el);
+  });
+
+  // top-10 table, sorted by raw case count (not per-capita) to match the CDC/CIDRAP framing
+  const topStates = [
+    {name:"South Carolina", cases:699, rate:"12.8", note:"Largest outbreak in the country in 2026"},
+    {name:"Utah", cases:520, rate:"14.8", note:"Second epicenter; highest rate per capita"},
+    {name:"Texas", cases:182, rate:"0.6", note:"High total, low per-capita rate (large population)"},
+    {name:"Florida", cases:154, rate:"0.7", note:"High total, low per-capita rate"},
+    {name:"Virginia", cases:111, rate:"1.3", note:"Fastest-growing outbreak, rural Buckingham County"},
+    {name:"Arizona", cases:96, rate:"1.3", note:"Sustained community spread"},
+    {name:"Pennsylvania", cases:81, rate:"0.5", note:"Multiple smaller clusters"},
+    {name:"California", cases:49, rate:"0.1", note:"Mostly travel-linked cases"},
+    {name:"Washington", cases:45, rate:"0.6", note:"Community clusters in under-vaccinated areas"},
+    {name:"North Dakota", cases:38, rate:"4.8", note:"Small population drives high per-capita rate"}
+  ];
+  // render each top-10 state as a row in the table
+  const tbody = document.getElementById('stateTable');
+  topStates.forEach(s => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.name}</td><td class="n">${s.cases.toLocaleString()}</td><td>${s.rate}</td><td>${s.note}</td>`;
+    tbody.appendChild(tr);
+  });
+</script>
+
+</body>
+</html>
