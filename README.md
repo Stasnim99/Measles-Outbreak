@@ -1,6 +1,6 @@
 # U.S. Measles Outbreak Report (2026)
 
-A single-page website summarizing the 2026 U.S. measles outbreak, based on CDC data and public health reporting. Website can be accessed here: https://stasnim99.github.io/Measles-Outbreak/
+A single-page website summarizing the 2026 U.S. measles outbreak, based on CDC data and public health reporting. Website can be accessed here: https://stasnim99.github.io/Measles-Outbreak-/
 
 ## Contents
 
