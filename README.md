@@ -7,7 +7,7 @@ A single-page website summarizing the 2026 U.S. measles outbreak, based on CDC d
 - **`index.html`** — the website itself. It's a single file with the HTML, CSS, and JavaScript all included, so it needs no internet connection or external files to run. Double-click it to open it in a browser.
 - **`README.md`** — this file.
 
-## What the page covers
+## What the page covers 
 
 The page opens with a set of summary statistics: total confirmed cases for 2026, the number of states and jurisdictions affected, the share of cases tied to a known outbreak, vaccination status among cases, hospitalization rate, and age breakdown.
 
